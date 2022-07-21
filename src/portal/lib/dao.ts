@@ -2,6 +2,8 @@
 import { hex2a } from './util'
 import moment from 'moment'
 import { web3FromAddress } from '@polkadot/extension-dapp';
+import { Api } from '@/hub/rest/cosmos';
+import { Signer } from '@polkadot/api/types';
 export interface ayesAndNayesInterface {
     farmId: number;
     weight: number;
@@ -18,6 +20,23 @@ export interface proposalInterface {
     link: string,
     ayesProgress: number,
     nayesProgress: number
+
+}
+export async function checkIfCouncilMember(address: string, api: { query: { council: { members: () => any; }; }; }) {
+    const councilMembers = await api.query.council.members()
+
+    if (councilMembers.map((member: any) => member.toJSON()).filter((add: string) => add === address).length) {
+        return true
+    }
+    return false
+
+}
+export async function propose(address: string, api: { tx: { dao: { propose: (arg0: number, arg1: string, arg2: string, arg3: string, arg4: number) => { (): any; new(): any; signAndSend: { (arg0: string, arg1: { signer: Signer; }, arg2: any): any; new(): any; }; }; }; }; }, threshold: number, action: string, description: string, link: string, callback: any) {
+    const injector = await web3FromAddress(address)
+
+    return api.tx.dao
+        .propose(threshold, action, description, link, 0o0)
+        .signAndSend(address, { signer: injector.signer }, callback)
 
 }
 export async function vote(address: string, api: { tx: { dao: { vote: (arg0: any, arg1: any, arg2: any) => { (): any; new(): any; signAndSend: { (arg0: any, arg1: { signer: any }, arg2: any): any; new(): any } } } } }, farmId: string, hash: any, approve: boolean, callback: any) {
@@ -111,3 +130,5 @@ export async function getProposalVotes(api: any, hash: any) {
     const voting = await api.query.dao.voting(hash)
     return voting.toJSON()
 }
+
+

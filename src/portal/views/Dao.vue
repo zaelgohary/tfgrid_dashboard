@@ -1,5 +1,37 @@
 <template>
   <v-container fluid>
+    <v-dialog
+      v-model="openCreateDialogue"
+      max-width="6--"
+    >
+      <v-card class="pa-5 my-5">
+        <v-card-title>Create Proposal</v-card-title>
+        <v-text-field
+          v-model="threshold"
+          type="number"
+          label="Threshold"
+        ></v-text-field>
+        <v-text-field
+          v-model="action"
+          type="text"
+          label="action"
+        ></v-text-field>
+        <v-text-field
+          v-model="description"
+          type="text"
+          label="description"
+        ></v-text-field>
+        <v-text-field
+          v-model="link"
+          type="text"
+          label="link"
+        ></v-text-field>
+        <v-card-actions>
+          <v-btn @click="createProposal()">Submit</v-btn>
+          <v-btn @click="openCreateDialogue= false">Cancel</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-container v-if="!proposals.active.length">
       <v-card class="my-3 pa-3 d-flex justify-center">
@@ -15,12 +47,12 @@
           <v-container>
             <v-row class="d-flex justify-center">
               <h2>
-                Howdy {{ $route.query.accountName }}, you can now vote on proposals!
+                Howdy {{ $route.query.accountName }}, you can now create and vote on proposals!
               </h2>
+
               <v-tooltip bottom>
                 <template v-slot:activator="{ on, attrs }">
                   <v-icon
-                    dark
                     right
                     v-bind="attrs"
                     v-on="on"
@@ -32,8 +64,16 @@
                 <span> Click for more info </span>
               </v-tooltip>
             </v-row>
+            <v-row
+              class="d-flex justify-center"
+              v-if="isCouncilMember"
+            >
+              <v-btn @click="openCreateDialogue = true">create proposal</v-btn>
+
+            </v-row>
 
           </v-container>
+
           <template v-slot:extension>
             <v-tabs
               v-model="tabSelected"
@@ -235,7 +275,13 @@
 </template>
 <script lang="ts">
 import { Component, Vue, Watch } from "vue-property-decorator";
-import { getProposals, vote, proposalInterface } from "../lib/dao";
+import {
+  getProposals,
+  vote,
+  proposalInterface,
+  checkIfCouncilMember,
+  propose,
+} from "../lib/dao";
 import { getFarm, getNodesByFarm } from "../lib/farms";
 
 @Component({
@@ -260,10 +306,17 @@ export default class DaoView extends Vue {
   selectedProposal = "";
   searchTerm = "";
   tabSelected = "tab-0";
+  openCreateDialogue = false;
+  loadingCreateProposal = false;
   tabs = [
     { title: "Active", content: this.activeProposals },
     { title: "Archived", content: this.inactiveProposals },
   ];
+  threshold = 0;
+  action = "";
+  description = "";
+  link = "";
+  isCouncilMember = false;
   async mounted() {
     if (this.$api) {
       this.id = this.$route.query.twinID;
@@ -274,6 +327,10 @@ export default class DaoView extends Vue {
         { title: "Active", content: this.activeProposals },
         { title: "Executable", content: this.inactiveProposals },
       ];
+      this.isCouncilMember = await checkIfCouncilMember(
+        this.$route.params.accountID,
+        this.$api
+      );
       this.farms = await getFarm(this.$api, parseFloat(`${this.id}`));
     } else {
       this.$router.push({
@@ -282,11 +339,7 @@ export default class DaoView extends Vue {
       });
     }
   }
-  @Watch("proposals") async onProposalUpdate(value: any, oldValue: any) {
-    console.log(
-      `there were ${oldValue.length} proposals, now there is ${value.length} proposals`
-    );
-  }
+
   async updated() {
     this.id = this.$route.query.twinID;
     if (this.$api) {
@@ -313,7 +366,65 @@ export default class DaoView extends Vue {
     }
     return selectedProposals;
   }
+  createProposal() {
+    propose(
+      this.$route.params.accountID,
+      this.$api,
+      this.threshold,
+      this.action,
+      this.description,
+      this.link,
+      (res: {
+        events?: never[] | undefined;
+        status: { type: string; asFinalized: string; isFinalized: string };
+      }) => {
+        console.log(res);
+        if (res instanceof Error) {
+          console.log(res);
+          return;
+        }
+        const { events = [], status } = res;
+        console.log(`Current status is ${status.type}`);
+        switch (status.type) {
+          case "Ready":
+            this.$toasted.show(`Transaction submitted`);
+        }
+        if (status.isFinalized) {
+          console.log(
+            `Transaction included at blockHash ${status.asFinalized}`
+          );
+          if (!events.length) {
+            this.$toasted.show("Proposal creation failed!");
+            this.openCreateDialogue = false;
+            this.loadingCreateProposal = false;
+          } else {
+            // Loop through Vec<EventRecord> to display all events
+            events.forEach(({ phase, event: { data, method, section } }) => {
+              console.log(`\t' ${phase}: ${section}.${method}:: ${data}`);
+              if (section === "tfgridModule" && method === "FarmStored") {
+                this.$toasted.show("Proposal created!");
+                this.loadingCreateProposal = false;
+                this.threshold = 0;
+                this.description = "";
+                this.action = "";
+                this.link = "";
 
+                this.openCreateDialogue = false;
+              } else if (section === "system" && method === "ExtrinsicFailed") {
+                this.$toasted.show("Proposal creation failed!");
+                this.openCreateDialogue = false;
+                this.loadingCreateProposal = false;
+              }
+            });
+          }
+        }
+      }
+    ).catch((err) => {
+      this.$toasted.show(err.message);
+      this.openCreateDialogue = false;
+      this.loadingCreateProposal = false;
+    });
+  }
   openVoteDialog(hash: any, vote: boolean) {
     this.openVDialog = true;
     this.vote = vote;
