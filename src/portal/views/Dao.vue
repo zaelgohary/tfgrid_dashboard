@@ -2,7 +2,7 @@
   <v-container fluid>
     <v-dialog
       v-model="openCreateDialogue"
-      max-width="6--"
+      max-width="600"
     >
       <v-card class="pa-5 my-5">
         <v-card-title>Create Proposal</v-card-title>
@@ -26,7 +26,7 @@
           type="text"
           label="link"
         ></v-text-field>
-        <v-card-actions>
+        <v-card-actions class="justify-end">
           <v-btn @click="createProposal()">Submit</v-btn>
           <v-btn @click="openCreateDialogue= false">Cancel</v-btn>
         </v-card-actions>
