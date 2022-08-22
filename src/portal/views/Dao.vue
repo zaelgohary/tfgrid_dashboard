@@ -13,12 +13,21 @@
           color="dark"
         >
           <v-container>
-            <v-row class="d-flex justify-center">
-              <h2 v-if="!proposals.active.length">
+
+            <v-row
+              v-if="!proposals.active.length"
+              class="d-flex justify-center"
+            >
+              <h2>
                 No Active proposals at this time
               </h2>
-              <h2 v-else>
-                Howdy {{ $route.query.accountName }}, you can now vote on proposals!
+            </v-row>
+            <v-row
+              class="d-flex justify-center"
+              v-else
+            >
+              <h2>
+                Howdy {{ $route.query.accountName }}, you can vote on proposals!
               </h2>
               <v-tooltip bottom>
                 <template v-slot:activator="{ on, attrs }">
@@ -34,7 +43,12 @@
                 </template>
                 <span> Click for more info </span>
               </v-tooltip>
+              <v-btn
+                v-if="isCouncilMember"
+                class="ml-auto"
+              >Propose</v-btn>
             </v-row>
+
           </v-container>
 
           <template v-slot:extension>
@@ -51,6 +65,7 @@
               </v-tab>
             </v-tabs>
           </template>
+
         </v-toolbar>
         <v-tabs-items v-model="tabSelected">
           <v-tab-item
@@ -242,8 +257,13 @@
   </v-container>
 </template>
 <script lang="ts">
-import { Component, Vue, Watch } from "vue-property-decorator";
-import { getProposals, vote, proposalInterface } from "../lib/dao";
+import { Component, Vue } from "vue-property-decorator";
+import {
+  getProposals,
+  vote,
+  proposalInterface,
+  getCouncilMembers,
+} from "../lib/dao";
 import { getFarm, getNodesByFarm } from "../lib/farms";
 @Component({
   name: "Dao",
@@ -275,6 +295,8 @@ export default class DaoView extends Vue {
   rules = {
     select: [(v: string) => !!v || "required field"],
   };
+  councilMembers: any = [];
+  isCouncilMember = false;
   async mounted() {
     if (this.$api) {
       this.id = this.$route.query.twinID;
@@ -286,6 +308,13 @@ export default class DaoView extends Vue {
         { title: "Executable", content: this.inactiveProposals },
       ];
       this.farms = await getFarm(this.$api, parseFloat(`${this.id}`));
+      this.councilMembers = await getCouncilMembers(this.$api);
+      this.councilMembers = this.councilMembers.map(
+        (hash: { toJSON: () => any }) => hash.toJSON()
+      );
+      this.isCouncilMember = this.councilMembers.includes(
+        this.$route.params.accountID
+      );
     } else {
       this.$router.push({
         name: "accounts",
@@ -365,15 +394,13 @@ export default class DaoView extends Vue {
                 this.$toasted.show("Voted for proposal!");
                 this.loadingVote = false;
                 this.openVDialog = false;
-                getProposals(this.$api).then(
-                  (proposals) => {
-                    this.proposals = proposals;
-                    this.tabs = [
-                      { title: "Active", content: proposals.active },
-                      { title: "Archived", content: proposals.inactive },
-                    ];
-                  }
-                );
+                getProposals(this.$api).then((proposals) => {
+                  this.proposals = proposals;
+                  this.tabs = [
+                    { title: "Active", content: proposals.active },
+                    { title: "Archived", content: proposals.inactive },
+                  ];
+                });
               } else if (section === "system" && method === "ExtrinsicFailed") {
                 this.$toasted.show("Vote failed");
                 this.loadingVote = false;

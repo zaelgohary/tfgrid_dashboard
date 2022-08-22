@@ -20,6 +20,10 @@ export interface proposalInterface {
     nayesProgress: number
 
 }
+export async function getCouncilMembers(api: { query: { councilMembership: { members: () => any; }; }; }) {
+    return api.query.councilMembership.members()
+
+}
 export async function vote(address: string, api: { tx: { dao: { vote: (arg0: any, arg1: any, arg2: any) => { (): any; new(): any; signAndSend: { (arg0: any, arg1: { signer: any }, arg2: any): any; new(): any } } } } }, farmId: string, hash: any, approve: boolean, callback: any) {
     try {
         const injector = await web3FromAddress(address)
