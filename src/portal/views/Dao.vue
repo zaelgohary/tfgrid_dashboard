@@ -46,6 +46,7 @@
               <v-btn
                 v-if="isCouncilMember"
                 class="ml-auto"
+                @click="openCreateProposalDialog = true"
               >Propose</v-btn>
             </v-row>
 
@@ -253,7 +254,56 @@
           </v-card-actions>
         </v-card>
       </v-dialog>
+
     </v-container>
+    <v-dialog
+      v-model="openCreateProposalDialog"
+      max-width="900"
+    >
+      <v-card>
+        <v-card-title>Propose</v-card-title>
+        <v-card-text>
+          <v-form v-model="isProposalValid">
+            <v-text-field
+              v-model="threshold"
+              label="Threshold"
+              :rules="[
+               () => !!threshold || 'This field is required',
+               () => threshold > 0 || 'Threshold cannot be negative or 0',
+
+          ]"
+            ></v-text-field>
+            <v-text-field
+              v-model="description"
+              label="Description"
+              :rules="[
+             () => !!description || 'This field is required',
+          ]"
+            ></v-text-field>
+            <v-text-field
+              v-model="link"
+              label="Link"
+              :rules="[
+             () => !!link|| 'This field is required',
+          ]"
+            ></v-text-field>
+            <v-text-field
+              v-model="remark"
+              label="Remark"
+            ></v-text-field>
+          </v-form>
+        </v-card-text>
+        <v-card-actions class="justify-end">
+          <v-btn
+            @click="createProposal"
+            :disabled="!isProposalValid"
+            :loading="loadingCreateProposal"
+          >submit</v-btn>
+          <v-btn @click="openCreateProposalDialog = false">Close</v-btn>
+        </v-card-actions>
+      </v-card>
+
+    </v-dialog>
   </v-container>
 </template>
 <script lang="ts">
@@ -263,6 +313,7 @@ import {
   vote,
   proposalInterface,
   getCouncilMembers,
+  propose,
 } from "../lib/dao";
 import { getFarm, getNodesByFarm } from "../lib/farms";
 @Component({
@@ -297,6 +348,14 @@ export default class DaoView extends Vue {
   };
   councilMembers: any = [];
   isCouncilMember = false;
+  openCreateProposalDialog = false;
+  threshold = 0;
+  description = "";
+  link = "";
+  remark = "";
+  isProposalValid = false;
+  loadingCreateProposal = false;
+
   async mounted() {
     if (this.$api) {
       this.id = this.$route.query.twinID;
@@ -347,6 +406,58 @@ export default class DaoView extends Vue {
       );
     }
     return selectedProposals;
+  }
+  createProposal() {
+    this.loadingCreateProposal = true;
+    propose(
+      this.$route.params.accountID,
+      this.description,
+      this.threshold,
+      this.link,
+      this.remark,
+      this.$api,
+      (res: {
+        events?: never[] | undefined;
+        status: { type: string; asFinalized: string; isFinalized: string };
+      }) => {
+        if (res instanceof Error) {
+          console.log(res);
+          return;
+        }
+        const { events = [], status } = res;
+        console.log(`Current status is ${status.type}`);
+        switch (status.type) {
+          case "Ready":
+            this.$toasted.show(`Transaction submitted`);
+        }
+        if (status.isFinalized) {
+          console.log(
+            `Transaction included at blockHash ${status.asFinalized}`
+          );
+          if (!events.length) {
+            this.$toasted.show("Proposal Creation failed!");
+            this.loadingCreateProposal = false;
+          } else {
+            // Loop through Vec<EventRecord> to display all events
+            events.forEach(({ phase, event: { data, method, section } }) => {
+              console.log(`\t' ${phase}: ${section}.${method}:: ${data}`);
+              if (section === "balances" && method === "Transfer") {
+                this.$toasted.show("Proposal Creation succeeded!");
+                this.loadingCreateProposal = false;
+                this.openCreateProposalDialog = false;
+              } else if (section === "system" && method === "ExtrinsicFailed") {
+                this.$toasted.show("Proposal Creation failed!");
+                this.loadingCreateProposal = false;
+              }
+            });
+          }
+        }
+      }
+    ).catch((err) => {
+      this.$toasted.show(err.message);
+      this.loadingCreateProposal = false;
+    });
+    console.log("createing proposal");
   }
   openVoteDialog(hash: any, vote: boolean) {
     this.openVDialog = true;

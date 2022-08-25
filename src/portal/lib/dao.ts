@@ -2,6 +2,7 @@
 import { hex2a } from './util'
 import moment from 'moment'
 import { web3FromAddress } from '@polkadot/extension-dapp';
+import { Signer } from '@polkadot/api/types';
 export interface ayesAndNayesInterface {
     farmId: number;
     weight: number;
@@ -22,6 +23,19 @@ export interface proposalInterface {
 }
 export async function getCouncilMembers(api: { query: { councilMembership: { members: () => any; }; }; }) {
     return api.query.councilMembership.members()
+
+}
+export async function propose(address: string, description: string, threshold: number, link: string, action: string, api: { tx: { dao: { propose: (arg0: number, arg1: string, arg2: string, arg3: string) => { (): any; new(): any; signAndSend: { (arg0: string, arg1: { signer: Signer; }, arg2: any): any; new(): any; }; }; }; }; }, callback: any) {
+    try {
+        const injector = await web3FromAddress(address)
+
+        return api.tx.dao
+            .propose(threshold, action, description, link)
+            .signAndSend(address, { signer: injector.signer }, callback)
+
+    } catch (error) {
+        console.log('error while creating proposal', error)
+    }
 
 }
 export async function vote(address: string, api: { tx: { dao: { vote: (arg0: any, arg1: any, arg2: any) => { (): any; new(): any; signAndSend: { (arg0: any, arg1: { signer: any }, arg2: any): any; new(): any } } } } }, farmId: string, hash: any, approve: boolean, callback: any) {
