@@ -5,7 +5,7 @@
 replicaCount: 1
 
 image:
-  repository: threefolddev/tfgrid_dashboard
+  repository: zaelgohary/tfgrid_dashboard
   pullPolicy: Always
   tag: v1.1.4
 
