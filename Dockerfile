@@ -1,7 +1,5 @@
-# stage 1
 FROM node:14.17.0-alpine as build
 
-# add arg for the version
 ARG VERSION
 
 WORKDIR /app
